@@ -1,21 +1,30 @@
 import json
 import os
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 import numpy as np
 from pymilvus import connections, MilvusClient, FieldSchema, CollectionSchema, DataType, Collection, AnnSearchRequest, RRFRanker
 from pymilvus.model.hybrid import BGEM3EmbeddingFunction
+from modelscope.hub.snapshot_download import snapshot_download
+from sentence_transformers import SentenceTransformer
+
+print("--> 正在下载轻量级模型 BGE-Small-ZH...")
+model_dir = snapshot_download('AI-ModelScope/bge-small-zh-v1.5', cache_dir='/root/autodl-tmp/models')
 
 # 1. 初始化设置
 COLLECTION_NAME = "dragon_hybrid_demo"
-MILVUS_URI = "http://localhost:19530"  # 服务器模式
+MILVUS_URI = "./milvus_local.db"  # 服务器模式
 DATA_PATH = "../../data/C4/metadata/dragon.json"  # 相对路径
-BATCH_SIZE = 50
+BATCH_SIZE = 5
 
 # 2. 连接 Milvus 并初始化嵌入模型
 print(f"--> 正在连接到 Milvus: {MILVUS_URI}")
 connections.connect(uri=MILVUS_URI)
 
+
 print("--> 正在初始化 BGE-M3 嵌入模型...")
-ef = BGEM3EmbeddingFunction(use_fp16=False, device="cpu")
+
+ef = BGEM3EmbeddingFunction(model_name=model_dir, use_fp16=False, device="cpu")
+
 print(f"--> 嵌入模型初始化完成。密集向量维度: {ef.dim['dense']}")
 
 # 3. 创建 Collection
@@ -66,7 +75,7 @@ if collection.is_empty:
     if not os.path.exists(DATA_PATH):
         raise FileNotFoundError(f"数据文件未找到: {DATA_PATH}")
     with open(DATA_PATH, 'r', encoding='utf-8') as f:
-        dataset = json.load(f)
+        dataset = json.load(f)[:20]
 
     docs, metadata = [], []
     for item in dataset:
